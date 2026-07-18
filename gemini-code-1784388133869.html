@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Színsorozat - Memóriajáték</title>
+    
+    <!-- ================================================================= -->
+    <!-- CSS STÍLUSOK (Megjelenés és elrendezés)                           -->
+    <!-- ================================================================= -->
+    <style>
+        /* Alapvető beállítások a gyerekbarát, letisztult felülethez */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e8f5e9; /* Kellemes, halványzöld háttér a mintakép alapján */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* A játék fő konténere kerekített sarkokkal */
+        .game-container {
+            background-color: #e8f5e9;
+            border: 4px solid #4682b4; /* Kék keret a mintaképhez hasonlóan */
+            border-radius: 40px;
+            padding: 40px;
+            width: 100%;
+            max-width: 900px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+        }
+
+        h1 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+
+        /* Információs és visszajelző szövegek stílusa */
+        .info-text {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #37474f;
+            margin-bottom: 20px;
+            min-height: 30px;
+        }
+
+        /* Körök konténereinek igazítása (flexbox) */
+        .circle-row {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        /* Általános kör stílus */
+        .circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid #000000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        /* A kitöltendő fázis köreinek egyedi stílusa */
+        .playable-circle {
+            cursor: pointer;
+            background-color: #f5f5f5; /* Alapértelmezett üres szín */
+        }
+
+        /* Kiválasztott (aktív) kör kiemelése */
+        .playable-circle.selected {
+            border: 5px solid #ff9800;
+            transform: scale(1.1);
+        }
+
+        /* Választható színek palettája (kisebb körök alul) */
+        .palette-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 40px 0 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .palette-circle {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            border: 2px solid #000000;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .palette-circle:hover {
+            transform: scale(1.15);
+        }
+
+        /* Gombok stílusai */
+        .btn {
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            padding: 15px 35px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+            transition: all 0.2s;
+            margin: 10px;
+        }
+
+        .btn:hover:not(:disabled) {
+            background-color: #f57c00;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background-color: #b0bec5;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* Egyedi stílus az újrajáték gombnak */
+        .btn-restart {
+            background-color: #4caf50;
+        }
+        .btn-restart:hover {
+            background-color: #388e3c;
+        }
+
+        /* Rejtett elemek osztálya */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================================================================= -->
+    <!-- HTML SZERKEZET                                                    -->
+    <!-- ================================================================= -->
+    <div class="game-container">
+        <h1>Színsorozat</h1>
+        <div id="infoText" class="info-text">Jegyezd meg a színeket! Felkészültél?</div>
+
+        <!-- 1. FÁZIS: A megjegyzendő véletlen színsor -->
+        <div id="targetRow" class="circle-row">
+            <!-- A JavaScript fogja dinamikusan feltölteni körökkel -->
+        </div>
+
+        <!-- 2. FÁZIS: A játékos által kitöltendő üres körök -->
+        <div id="playerRow" class="circle-row hidden">
+            <div class="circle playable-circle" data-index="0" onclick="selectPlayerCircle(0)"></div>
+            <div class="circle playable-circle" data-index="1" onclick="selectPlayerCircle(1)"></div>
+            <div class="circle playable-circle" data-index="2" onclick="selectPlayerCircle(2)"></div>
+            <div class="circle playable-circle" data-index="3" onclick="selectPlayerCircle(3)"></div>
+        </div>
+
+        <!-- VÁLASZTHATÓ SZÍNEK (Paletta) -->
+        <div id="paletteContainer" class="palette-row hidden">
+            <!-- A JavaScript fogja dinamikusan feltölteni a 8 színnel -->
+        </div>
+
+        <!-- KEZELŐGOMBOK -->
+        <div style="margin-top: 20px;">
+            <button id="checkBtn" class="btn hidden" onclick="checkSolution()" disabled>ELLENŐRZÉS</button>
+            <button id="restartBtn" class="btn btn-restart hidden" onclick="initGame()">Új játék indítása</button>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- JAVASCRIPT KÓD (Játéklogika)                                      -->
+    <!-- ================================================================= -->
+    <script>
+        // --- Globális változók és beállítások ---
+        
+        // A játékban használt 8 alapszín (színárnyalatok nélkül)
+        const ALL_COLORS = [
+            '#ff0000', // Piros
+            '#ffcc00', // Sárga (mintakép szerinti melegebb sárga)
+            '#0066cc', // Kék
+            '#00a859', // Zöld
+            '#d86018', // Barna / Narancsos barna
+            '#7030a0', // Lila
+            '#000000', // Fekete
+            '#ffffff'  // Fehér
+        ];
+
+        let targetSequence = []; // A gép által választott 4 szín
+        let playerSequence = [null, null, null, null]; // A játékos tippjei
+        let selectedCircleIndex = null; // Éppen kijelölt kör indexe
+        let countdownTimer = null;
+
+        // Elemek kimentése a DOM-ból a gyorsabb elérés érdekében
+        const infoText = document.getElementById('infoText');
+        const targetRow = document.getElementById('targetRow');
+        const playerRow = document.getElementById('playerRow');
+        const paletteContainer = document.getElementById('paletteContainer');
+        const checkBtn = document.getElementById('checkBtn');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // --- Játék indítása betöltéskor ---
+        window.onload = initGame;
+
+        /**
+         * Inicializálja és elindítja a játékot.
+         */
+        function initGame() {
+            // Időzítő törlése, ha esetleg futna egy korábbi játékból
+            clearTimeout(countdownTimer);
+            
+            // Állapotok alaphelyzetbe állítása
+            targetSequence = [];
+            playerSequence = [null, null, null, null];
+            selectedCircleIndex = null;
+
+            // Felület elemeinek láthatósági beállításai
+            targetRow.innerHTML = '';
+            targetRow.classList.remove('hidden');
+            playerRow.classList.add('hidden');
+            paletteContainer.classList.add('hidden');
+            checkBtn.classList.add('hidden');
+            checkBtn.disabled = true;
+            restartBtn.classList.add('hidden');
+
+            // Kitöltendő körök vizuális visszaállítása (szín kiürítése, kijelölés törlése)
+            const playerCircles = document.querySelectorAll('.playable-circle');
+            playerCircles.forEach(circle => {
+                circle.style.backgroundColor = '#f5f5f5';
+                circle.classList.remove('selected');
+            });
+
+            // 1. 4 különböző véletlenszerű szín kiválasztása (NEM ismétlődhetnek)
+            let shuffledColors = [...ALL_COLORS].sort(() => 0.5 - Math.random());
+            targetSequence = shuffledColors.slice(0, 4);
+
+            // 2. A kiválasztott 4 szín megjelenítése a felső sorban
+            targetSequence.forEach(color => {
+                const circle = document.createElement('div');
+                circle.className = 'circle';
+                circle.style.backgroundColor = color;
+                targetRow.appendChild(circle);
+            });
+
+            // 3. Paletta összeállítása: A 4 helyes szín + a maradék 4-ből a többi (hogy mindig 8 legyen)
+            // Mivel a shuffledColors eleve a kevert teljes lista, az első 8 elem pontosan tartalmazza
+            // a kiválasztott 4-et és a többit is. Már csak újra össze kell keverni a paletta kedvéért.
+            let paletteColors = [...shuffledColors].sort(() => 0.5 - Math.random());
+            
+            // Paletta HTML generálása
+            paletteContainer.innerHTML = '';
+            paletteColors.forEach(color => {
+                const pCircle = document.createElement('div');
+                pCircle.className = 'palette-circle';
+                pCircle.style.backgroundColor = color;
+                pCircle.onclick = () => chooseColor(color);
+                paletteContainer.appendChild(pCircle);
+            });
+
+            // 4. Időzítő indítása: 8 másodpercig látható
+            let secondsLeft = 8;
+            infoText.innerText = `Figyeld jól a színeket! Eltűnik: ${secondsLeft} másodperc`;
+
+            const interval = setInterval(() => {
+                secondsLeft--;
+                if (secondsLeft > 0) {
+                    infoText.innerText = `Figyeld jól a színeket! Eltűnik: ${secondsLeft} másodperc`;
+                } else {
+                    clearInterval(interval);
+                    startGuessingPhase(); // Átlépés a tippelő fázisba
+                }
+            }, 1000);
+
+            // Biztonsági mentés az időzítő referenciájára
+            countdownTimer = interval;
+        }
+
+        /**
+         * Átlépés a második fázisba: Eltűnik a célsor, megjelennek a választható elemek.
+         */
+        function startGuessingPhase() {
+            targetRow.classList.add('hidden'); // Eredeti színsor eltüntetése
+            playerRow.classList.remove('hidden'); // Üres körök megjelenítése
+            paletteContainer.classList.remove('hidden'); // Színpaletta megjelenítése
+            checkBtn.classList.remove('hidden'); // Ellenőrzés gomb kirakása
+            
+            infoText.innerText = "Kattints egy üres körre, majd válassz neki egy színt alulról!";
+            
+            // Automatikusan jelöljük ki az első kört a kényelmesebb játékmenetért
+            selectPlayerCircle(0);
+        }
+
+        /**
+         * Játékos kör kijelölése (amelyikbe a színt szeretné rakni)
+         */
+        function selectPlayerCircle(index) {
+            // Előző kijelölés eltávolítása
+            const circles = document.querySelectorAll('.playable-circle');
+            circles.forEach(c => c.classList.remove('selected'));
+
+            // Új kijelölés beállítása
+            selectedCircleIndex = index;
+            circles[index].classList.add('selected');
+        }
+
+        /**
+         * Színválasztás a palettáról a kijelölt körbe
+         */
+        function chooseColor(color) {
+            if (selectedCircleIndex === null) {
+                infoText.innerText = "Először kattints az egyik fenti üres körre!";
+                return;
+            }
+
+            // Szín elmentése a tömbben és beállítása vizuálisan
+            playerSequence[selectedCircleIndex] = color;
+            const circles = document.querySelectorAll('.playable-circle');
+            circles[selectedCircleIndex].style.backgroundColor = color;
+
+            // Ha van még üres kör, automatikusan lépjen a következőre (felhasználóbarát megoldás)
+            let nextEmptyIndex = playerSequence.findIndex(c => c === null);
+            if (nextEmptyIndex !== -1) {
+                selectPlayerCircle(nextEmptyIndex);
+            }
+
+            // Ellenőrizzük, hogy mind a 4 kör ki van-e már töltve
+            checkButtonActivation();
+        }
+
+        /**
+         * Az Ellenőrzés gomb aktiválása/deaktiválása a kitöltöttség függvényében
+         */
+        function checkButtonActivation() {
+            const isAllFilled = playerSequence.every(color => color !== null);
+            checkBtn.disabled = !isAllFilled;
+        }
+
+        /**
+         * A játékos megoldásának ellenőrzése
+         */
+        function checkSolution() {
+            let isCorrect = true;
+
+            // Sorrend és színek összehasonlítása
+            for (let i = 0; i < 4; i++) {
+                if (playerSequence[i] !== targetSequence[i]) {
+                    isCorrect = false;
+                    break;
+                }
+            }
+
+            // Kijelölési keretek levétele az ellenőrzésnél
+            const circles = document.querySelectorAll('.playable-circle');
+            circles.forEach(c => c.classList.remove('selected'));
+            selectedCircleIndex = null;
+
+            if (isCorrect) {
+                // Helyes megoldás esetén felugró üzenet és új játék lehetősége
+                alert("Gratulálok!\nHibátlanul megoldottad a feladatot! 🎉");
+                infoText.innerText = "Ügyes vagy! 🎉 Hibátlan megoldás!";
+                endGame();
+            } else {
+                // Hibás megoldás esetén figyelmeztetés és a helyes sorrend felfedése alul
+                alert("Most nem sikerült.\nPróbáld meg újra! 😊");
+                infoText.innerText = "Most nem sikerült. Itt láthatod a helyes megoldást: 👇";
+                
+                // Helyes színsor visszahozatala a kiértékeléshez
+                targetRow.classList.remove('hidden');
+                endGame();
+            }
+        }
+
+        /**
+         * Játék lezárása, újrakezdés gomb felkínálása
+         */
+        function endGame() {
+            paletteContainer.classList.add('hidden');
+            checkBtn.classList.add('hidden');
+            restartBtn.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
